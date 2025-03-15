@@ -196,7 +196,7 @@
                                     ${game.players.map((player, playerIndex) => `
                                         <td>
                                             <div class="d-flex align-items-center">
-                                                <input id="roundScore-${gameIndex}-${playerIndex}-${roundIndex}" type="number" placeholder="Rundenpunkte eingeben" class="form-control mb-2 mr-2" value="${player.rounds[roundIndex] !== undefined ? player.rounds[roundIndex] : ''}" onchange="addRound(${gameIndex}, ${playerIndex}, ${roundIndex})">
+                                                <input id="roundScore-${gameIndex}-${playerIndex}-${roundIndex}" type="number" inputmode="numeric" placeholder="Rundenpunkte eingeben" class="form-control mb-2 mr-2" value="${player.rounds[roundIndex] !== undefined ? player.rounds[roundIndex] : ''}" onchange="addRound(${gameIndex}, ${playerIndex}, ${roundIndex})">
                                                 ${player.madePoints && player.madePoints[roundIndex] !== undefined ? 
                                                     `<span onclick="toggleMadePoints(${gameIndex}, ${playerIndex}, ${roundIndex})" style="cursor: pointer;">${player.madePoints[roundIndex] ? '✅' : '❌'}</span>` : ''}
                                             </div>

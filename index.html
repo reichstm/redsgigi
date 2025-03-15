@@ -82,39 +82,24 @@
         function addRound(gameIndex, playerIndex, roundIndex) {
             const roundScoreInput = document.getElementById(`roundScore-${gameIndex}-${playerIndex}-${roundIndex}`);
             const roundScore = parseInt(roundScoreInput.value.trim());
-            if (!isNaN(roundScore)) {
+            if (!isNaN(roundScore) && roundScore <= roundIndex + 1) {
                 games[gameIndex].players[playerIndex].rounds[roundIndex] = roundScore;
                 saveGames();
                 renderGames(gameIndex);
+            } else {
+                alert(`Der Wert muss eine Zahl und kleiner oder gleich der Rundenzahl (${roundIndex + 1}) sein.`);
+                roundScoreInput.value = '';
             }
-        }
-
-        function processRound(gameIndex, roundIndex) {
-            games[gameIndex].players.forEach((player, playerIndex) => {
-                const assumedPoints = player.rounds[roundIndex];
-                if (assumedPoints !== undefined) {
-                    const madePoints = confirm(`Hat ${player.name} seine angenommenen Punkte von ${assumedPoints} in Runde ${roundIndex + 1} erreicht?`);
-                    player.madePoints = player.madePoints || [];
-                    player.madePoints[roundIndex] = madePoints;
-                    if (madePoints) {
-                        player.wonRounds = (player.wonRounds || 0) + 1;
-                    } else {
-                        player.lostRounds = (player.lostRounds || 0) + 1;
-                    }
-                }
-            });
-            recalculatePoints(gameIndex);
-            saveGames();
-            renderGames(gameIndex);
         }
 
         function toggleMadePoints(gameIndex, playerIndex, roundIndex) {
             const player = games[gameIndex].players[playerIndex];
-            player.madePoints[roundIndex] = !player.madePoints[roundIndex];
-            if (player.madePoints[roundIndex]) {
+            player.madePoints = player.madePoints || [];
+            player.madePoints[roundIndex] = player.madePoints[roundIndex] === true ? false : player.madePoints[roundIndex] === false ? null : true;
+            if (player.madePoints[roundIndex] === true) {
                 player.wonRounds = (player.wonRounds || 0) + 1;
                 player.lostRounds = (player.lostRounds || 0) - 1;
-            } else {
+            } else if (player.madePoints[roundIndex] === false) {
                 player.wonRounds = (player.wonRounds || 0) - 1;
                 player.lostRounds = (player.lostRounds || 0) + 1;
             }
@@ -129,9 +114,9 @@
                 player.points = 0;
                 player.rounds.forEach((assumedPoints, roundIndex) => {
                     if (assumedPoints !== undefined && player.madePoints && player.madePoints[roundIndex] !== undefined) {
-                        if (player.madePoints[roundIndex]) {
-                            player.points += assumedPoints + offset;
-                        } else {
+                        if (player.madePoints[roundIndex] === true) {
+                            player.points += (assumedPoints === 0 ? offset : assumedPoints + offset);
+                        } else if (player.madePoints[roundIndex] === false) {
                             player.points -= assumedPoints + offset;
                         }
                     }
@@ -196,15 +181,14 @@
                                     ${game.players.map((player, playerIndex) => `
                                         <td>
                                             <div class="d-flex align-items-center">
-                                                <input id="roundScore-${gameIndex}-${playerIndex}-${roundIndex}" type="number" inputmode="numeric" placeholder="Rundenpunkte eingeben" class="form-control mb-2 mr-2" value="${player.rounds[roundIndex] !== undefined ? player.rounds[roundIndex] : ''}" onchange="addRound(${gameIndex}, ${playerIndex}, ${roundIndex})">
-                                                ${player.madePoints && player.madePoints[roundIndex] !== undefined ? 
-                                                    `<span onclick="toggleMadePoints(${gameIndex}, ${playerIndex}, ${roundIndex})" style="cursor: pointer;">${player.madePoints[roundIndex] ? '✅' : '❌'}</span>` : ''}
+                                                <input id="roundScore-${gameIndex}-${playerIndex}-${roundIndex}" type="number" inputmode="numeric" class="form-control mb-2 mr-2" value="${player.rounds[roundIndex] !== undefined ? player.rounds[roundIndex] : ''}" onchange="addRound(${gameIndex}, ${playerIndex}, ${roundIndex})" tabindex="0">
+                                                <span onclick="toggleMadePoints(${gameIndex}, ${playerIndex}, ${roundIndex})" style="cursor: pointer;">
+                                                    ${player.madePoints && player.madePoints[roundIndex] !== undefined ? 
+                                                        (player.madePoints[roundIndex] === true ? '✅' : player.madePoints[roundIndex] === false ? '❌' : '⬜') : '⬜'}
+                                                </span>
                                             </div>
                                         </td>
                                     `).join('')}
-                                    <td>
-                                        <button onclick="processRound(${gameIndex}, ${roundIndex})" class="btn btn-warning btn-block">Runde ${roundIndex + 1} verarbeiten</button>
-                                    </td>
                                 </tr>
                             `).join('')}
                         </tbody>
@@ -223,6 +207,43 @@
                 option.value = index;
                 option.textContent = game.name;
                 existingGamesSelect.appendChild(option);
+            });
+        }
+
+        function customConfirm(message) {
+            return new Promise((resolve) => {
+                const modal = document.createElement('div');
+                modal.className = 'modal';
+                modal.style.display = 'block';
+                modal.innerHTML = `
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Bestätigung</h5>
+                                <button type="button" class="close" data-dismiss="modal" aria-label="Schließen">
+                                    <span aria-hidden="true">&times;</span>
+                                </button>
+                            </div>
+                            <div class="modal-body">
+                                <p>${message}</p>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-primary" id="yesButton">Ja</button>
+                                <button type="button" class="btn btn-secondary" id="noButton">Nein</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(modal);
+
+                document.getElementById('yesButton').onclick = () => {
+                    resolve(true);
+                    modal.remove();
+                };
+                document.getElementById('noButton').onclick = () => {
+                    resolve(false);
+                    modal.remove();
+                };
             });
         }
 

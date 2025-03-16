@@ -112,12 +112,16 @@
             const offset = games[gameIndex].offset;
             games[gameIndex].players.forEach(player => {
                 player.points = 0;
+                player.wonRounds = 0;
+                player.lostRounds = 0;
                 player.rounds.forEach((assumedPoints, roundIndex) => {
                     if (assumedPoints !== undefined && player.madePoints && player.madePoints[roundIndex] !== undefined) {
                         if (player.madePoints[roundIndex] === true) {
                             player.points += (assumedPoints === 0 ? offset : assumedPoints + offset);
+                            player.wonRounds++;
                         } else if (player.madePoints[roundIndex] === false) {
                             player.points -= assumedPoints + offset;
+                            player.lostRounds++;
                         }
                     }
                 });
@@ -149,7 +153,7 @@
                     </div>
                     <div class="mb-2 p-2 border rounded">
                         <h5 class="text-center">Statistik</h5>
-                        ${game.players.map(player => `
+                        ${game.players.sort((a, b) => b.points - a.points).map(player => `
                             <div class="d-flex justify-content-between align-items-center mb-2">
                                 <span>${player.name}</span>
                                 <span class="badge ${getBadgeClass(player.points)}">Punkte: ${player.points}</span>
@@ -175,22 +179,27 @@
                             </tr>
                         </thead>
                         <tbody>
-                            ${Array.from({ length: game.maxRounds * 2 - 1 }, (_, roundIndex) => `
-                                <tr>
-                                    <td>${roundIndex < game.maxRounds ? roundIndex + 1 : game.maxRounds * 2 - 1 - roundIndex}</td>
-                                    ${game.players.map((player, playerIndex) => `
-                                        <td>
-                                            <div class="d-flex align-items-center">
-                                                <input id="roundScore-${gameIndex}-${playerIndex}-${roundIndex}" type="number" inputmode="numeric" class="form-control mb-2 mr-2" value="${player.rounds[roundIndex] !== undefined ? player.rounds[roundIndex] : ''}" onchange="addRound(${gameIndex}, ${playerIndex}, ${roundIndex})" tabindex="0">
-                                                <span onclick="toggleMadePoints(${gameIndex}, ${playerIndex}, ${roundIndex})" style="cursor: pointer;">
-                                                    ${player.madePoints && player.madePoints[roundIndex] !== undefined ? 
-                                                        (player.madePoints[roundIndex] === true ? '✅' : player.madePoints[roundIndex] === false ? '❌' : '⬜') : '⬜'}
-                                                </span>
-                                            </div>
-                                        </td>
-                                    `).join('')}
-                                </tr>
-                            `).join('')}
+                            ${Array.from({ length: game.maxRounds * 2 - 1 }, (_, roundIndex) => {
+                                const sumAssumedPoints = game.players.reduce((sum, player) => sum + (player.rounds[roundIndex] || 0), 0);
+                                const roundNumber = roundIndex < game.maxRounds ? roundIndex + 1 : game.maxRounds * 2 - 1 - roundIndex;
+                                const sumClass = sumAssumedPoints > roundNumber ? 'text-danger' : sumAssumedPoints < roundNumber ? 'text-success' : '';
+                                return `
+                                    <tr>
+                                        <td><small class=${sumClass}>${sumAssumedPoints} / </small><span class="font-weight-bold">${roundNumber}</span></td>
+                                        ${game.players.map((player, playerIndex) => `
+                                            <td class="${roundIndex % game.players.length === playerIndex ? 'bg-light' : ''}">
+                                                <div class="d-flex align-items-center">
+                                                    <input id="roundScore-${gameIndex}-${playerIndex}-${roundIndex}" type="number" inputmode="numeric" class="form-control mb-2 mr-2" value="${player.rounds[roundIndex] !== undefined ? player.rounds[roundIndex] : ''}" onchange="addRound(${gameIndex}, ${playerIndex}, ${roundIndex})" tabindex="0">
+                                                    <span onclick="toggleMadePoints(${gameIndex}, ${playerIndex}, ${roundIndex})" style="cursor: pointer;">
+                                                        ${player.madePoints && player.madePoints[roundIndex] !== undefined ? 
+                                                            (player.madePoints[roundIndex] === true ? '✅' : player.madePoints[roundIndex] === false ? '❌' : '⬜') : '⬜'}
+                                                    </span>
+                                                </div>
+                                            </td>
+                                        `).join('')}
+                                    </tr>
+                                `;
+                            }).join('')}
                         </tbody>
                     </table>
                     <button onclick="deleteGame(${gameIndex})" class="btn btn-danger btn-block mt-2">Spiel löschen</button>

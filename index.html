@@ -5,18 +5,25 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Redsgigi</title>
     <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .fixed-width {
+            width: 100px;
+        }
+    </style>
 </head>
 <body class="bg-light p-4">
     <div class="container">
-        <h1 class="text-center mb-4">Redsgigi</h1>
-        <div class="mb-4">
-            <select id="existingGames" class="form-control mb-2" onchange="selectGame()">
-                <option value="">Wähle ein bestehendes Spiel</option>
-            </select>
-            <input id="gameName" type="text" placeholder="Spielname eingeben" class="form-control mb-2">
-            <input id="maxRounds" type="number" placeholder="Maximale Runden" class="form-control mb-2" value="10">
-            <input id="offset" type="number" placeholder="Offset" class="form-control mb-2" value="4">
-            <button onclick="addGame()" class="btn btn-primary btn-block">Spiel hinzufügen</button>
+        <h1 class="text-center mb-4" data-toggle="collapse" data-target="#newGameForm" aria-expanded="true" aria-controls="newGameForm" style="cursor: pointer;">Neues Spiel</h1>
+        <div id="newGameForm" class="collapse show">
+            <div class="d-flex mb-4">
+                <select id="existingGames" class="form-control mr-2" onchange="selectGame()">
+                    <option value="">Wähle ein bestehendes Spiel</option>
+                </select>
+                <input id="gameName" type="text" placeholder="Spielname eingeben" class="form-control mr-2">
+                <input id="maxRounds" type="number" placeholder="Maximale Runden" class="form-control mr-2" value="10">
+                <input id="offset" type="number" placeholder="Offset" class="form-control mr-2" value="4">
+                <button onclick="addGame()" class="btn btn-primary">Spiel hinzufügen</button>
+            </div>
         </div>
         <div id="gamesList">
             <!-- Spiele werden hier hinzugefügt -->
@@ -38,25 +45,29 @@
             const maxRounds = parseInt(maxRoundsInput.value.trim()) || 10;
             const offset = parseInt(offsetInput.value.trim()) || 4;
             if (gameName) {
-                games.push({ name: gameName, maxRounds: maxRounds, offset: offset, players: [] });
+                games.push({ name: gameName, maxRounds: maxRounds, offset: offset, players: [], createdAt: new Date() });
                 gameNameInput.value = '';
                 maxRoundsInput.value = '10';
                 offsetInput.value = '4';
                 saveGames();
-                renderGames();
                 populateExistingGames();
+                selectGame(games.length - 1);
             }
         }
 
         function deleteGame(gameIndex) {
             games.splice(gameIndex, 1);
             saveGames();
-            renderGames();
             populateExistingGames();
+            if (games.length > 0) {
+                selectGame(games.length - 1);
+            } else {
+                document.getElementById('gamesList').innerHTML = '';
+            }
         }
 
-        function selectGame() {
-            const selectedGameIndex = document.getElementById('existingGames').value;
+        function selectGame(gameIndex = null) {
+            const selectedGameIndex = gameIndex !== null ? gameIndex : document.getElementById('existingGames').value;
             if (selectedGameIndex !== "") {
                 renderGames(selectedGameIndex);
             }
@@ -141,70 +152,77 @@
         function renderGames(selectedGameIndex = null) {
             const gamesList = document.getElementById('gamesList');
             gamesList.innerHTML = '';
-            games.forEach((game, gameIndex) => {
-                if (selectedGameIndex !== null && gameIndex != selectedGameIndex) return;
-                const gameDiv = document.createElement('div');
-                gameDiv.className = 'mb-4 p-4 border rounded bg-white';
-                gameDiv.innerHTML = `
-                    <h2 class="text-center mb-2">${game.name} (Maximale Runden: ${game.maxRounds})</h2>
-                    <div class="mb-2 d-flex">
-                        <input id="playerName-${gameIndex}" type="text" placeholder="Spielername eingeben" class="form-control mr-2">
-                        <button onclick="addPlayer(${gameIndex})" class="btn btn-success">Spieler hinzufügen</button>
-                    </div>
-                    <div class="mb-2 p-2 border rounded">
-                        <h5 class="text-center">Statistik</h5>
-                        ${game.players.sort((a, b) => b.points - a.points).map(player => `
-                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                <span>${player.name}</span>
-                                <span class="badge ${getBadgeClass(player.points)}">Punkte: ${player.points}</span>
-                                <span>Gewonnene Runden: ${player.wonRounds || 0}</span>
-                                <span>Verlorene Runden: ${player.lostRounds || 0}</span>
-                            </div>
-                        `).join('')}
-                    </div>
-                    <h5 class="text-center mt-4">Runden</h5>
-                    <table class="table table-bordered mb-2">
-                        <thead>
-                            <tr>
-                                <th>Runde</th>
-                                ${game.players.map((player, playerIndex) => `
-                                    <th>
-                                        <div class="d-flex justify-content-between align-items-center">
-                                            <span class="w-50">${player.name}</span>
-                                            <span class="badge w-25 ${getBadgeClass(player.points)}">${player.points}</span>
-                                            <button onclick="removePlayer(${gameIndex}, ${playerIndex})" class="btn btn-sm">❌</button>
-                                        </div>
-                                    </th>
-                                `).join('')}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${Array.from({ length: game.maxRounds * 2 - 1 }, (_, roundIndex) => {
-                                const sumAssumedPoints = game.players.reduce((sum, player) => sum + (player.rounds[roundIndex] || 0), 0);
-                                const roundNumber = roundIndex < game.maxRounds ? roundIndex + 1 : game.maxRounds * 2 - 1 - roundIndex;
-                                const sumClass = sumAssumedPoints > roundNumber ? 'text-danger' : sumAssumedPoints < roundNumber ? 'text-success' : '';
-                                return `
-                                    <tr>
-                                        <td><small class=${sumClass}>${sumAssumedPoints} / </small><span class="font-weight-bold">${roundNumber}</span></td>
-                                        ${game.players.map((player, playerIndex) => `
-                                            <td class="${roundIndex % game.players.length === playerIndex ? 'bg-light' : ''}">
-                                                <div class="d-flex align-items-center">
-                                                    <input id="roundScore-${gameIndex}-${playerIndex}-${roundIndex}" type="number" inputmode="numeric" class="form-control mb-2 mr-2" value="${player.rounds[roundIndex] !== undefined ? player.rounds[roundIndex] : ''}" onchange="addRound(${gameIndex}, ${playerIndex}, ${roundIndex})" tabindex="0">
-                                                    <span onclick="toggleMadePoints(${gameIndex}, ${playerIndex}, ${roundIndex})" style="cursor: pointer;">
-                                                        ${player.madePoints && player.madePoints[roundIndex] !== undefined ? 
-                                                            (player.madePoints[roundIndex] === true ? '✅' : player.madePoints[roundIndex] === false ? '❌' : '⬜') : '⬜'}
-                                                    </span>
-                                                </div>
-                                            </td>
-                                        `).join('')}
-                                    </tr>
-                                `;
-                            }).join('')}
-                        </tbody>
-                    </table>
-                    <button onclick="deleteGame(${gameIndex})" class="btn btn-danger btn-block mt-2">Spiel löschen</button>
-                `;
-                gamesList.appendChild(gameDiv);
+            games.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            const game = games[selectedGameIndex];
+            const gameDiv = document.createElement('div');
+            gameDiv.className = 'mb-4 p-4 border rounded bg-white';
+            gameDiv.innerHTML = `
+                <h2 class="text-center mb-2">${game.name} (Maximale Runden: ${game.maxRounds})</h2>
+                <div class="mb-2 d-flex">
+                    <input id="playerName-${selectedGameIndex}" type="text" placeholder="Spielername eingeben" class="form-control mr-2">
+                    <button onclick="addPlayer(${selectedGameIndex})" class="btn btn-success">Spieler hinzufügen</button>
+                </div>
+                <div class="mb-2 p-2 border rounded">
+                    <h5 class="text-center">Statistik</h5>
+                    ${[...game.players].sort((a, b) => b.points - a.points).map(player => `
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="w-25">${player.name}</span>
+                            <span class="w-25 badge ${getBadgeClass(player.points)}">${player.points}</span>
+                            <span class="w-25">Gewonnen: ${player.wonRounds || 0} / Verloren: ${player.lostRounds || 0}</span>
+                        </div>
+                    `).join('')}
+                </div>
+                <h5 class="text-center mt-4">Runden</h5>
+                <table class="table table-bordered mb-2">
+                    <thead>
+                        <tr>
+                            <th>Runde</th>
+                            ${game.players.map((player, playerIndex) => `
+                                <th>
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span class="w-50">${player.name}</span>
+                                        <span class="badge w-25 ${getBadgeClass(player.points)}">${player.points}</span>
+                                        <button onclick="removePlayer(${selectedGameIndex}, ${playerIndex})" class="btn btn-sm">❌</button>
+                                    </div>
+                                </th>
+                            `).join('')}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${Array.from({ length: game.maxRounds * 2 - 1 }, (_, roundIndex) => {
+                            const sumAssumedPoints = game.players.reduce((sum, player) => sum + (player.rounds[roundIndex] || 0), 0);
+                            const roundNumber = roundIndex < game.maxRounds ? roundIndex + 1 : game.maxRounds * 2 - 1 - roundIndex;
+                            const sumClass = sumAssumedPoints > roundNumber ? 'text-danger' : sumAssumedPoints < roundNumber ? 'text-success' : '';
+                            return `
+                                <tr>
+                                    <td><small class="${sumClass}">${sumAssumedPoints} / </small><span class="font-weight-bold">${roundNumber}</span></td>
+                                    ${game.players.map((player, playerIndex) => `
+                                        <td class="${roundIndex % game.players.length === playerIndex ? 'bg-light' : ''}">
+                                            <div class="d-flex align-items-center">
+                                                <input id="roundScore-${selectedGameIndex}-${playerIndex}-${roundIndex}" type="number" inputmode="numeric" class="form-control mb-2 mr-2" value="${player.rounds[roundIndex] !== undefined ? player.rounds[roundIndex] : ''}" onchange="addRound(${selectedGameIndex}, ${playerIndex}, ${roundIndex})" tabindex="0">
+                                                <span onclick="toggleMadePoints(${selectedGameIndex}, ${playerIndex}, ${roundIndex})" style="cursor: pointer;">
+                                                    ${player.madePoints && player.madePoints[roundIndex] !== undefined ? 
+                                                        (player.madePoints[roundIndex] === true ? '✅' : player.madePoints[roundIndex] === false ? '❌' : '⬜') : '⬜'}
+                                                </span>
+                                            </div>
+                                        </td>
+                                    `).join('')}
+                                </tr>
+                            `;
+                        }).join('')}
+                    </tbody>
+                </table>
+                <button onclick="deleteGame(${selectedGameIndex})" class="btn btn-danger btn-block mt-2">Spiel löschen</button>
+            `;
+            gamesList.appendChild(gameDiv);
+
+            // Add event listeners to input fields for single-click focus
+            const inputFields = gameDiv.querySelectorAll('input[type="number"]');
+            inputFields.forEach(input => {
+                input.addEventListener('mousedown', (event) => {
+                    event.preventDefault();
+                    input.focus();
+                });
             });
         }
 
@@ -217,6 +235,10 @@
                 option.textContent = game.name;
                 existingGamesSelect.appendChild(option);
             });
+            if (games.length > 0) {
+                existingGamesSelect.value = games.length - 1;
+                selectGame(games.length - 1);
+            }
         }
 
         function customConfirm(message) {
@@ -258,7 +280,6 @@
 
         // Initial render
         populateExistingGames();
-        renderGames();
     </script>
 </body>
 </html>

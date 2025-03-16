@@ -168,7 +168,7 @@
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <span class="w-25">${player.name}</span>
                             <span class="w-25 badge ${getBadgeClass(player.points)}">${player.points}</span>
-                            <span class="w-25">Gewonnen: ${player.wonRounds || 0} / Verloren: ${player.lostRounds || 0}</span>
+                            <span class="w-25"><span class="text-success">${player.wonRounds || 0}</span>/<span class="text-danger">${player.lostRounds || 0}</span></span>
                         </div>
                     `).join('')}
                 </div>

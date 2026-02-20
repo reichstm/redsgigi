@@ -1,285 +1,562 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="de">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Redsgigi</title>
-    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        .fixed-width {
-            width: 100px;
-        }
-    </style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Redsgigi – Spielstand</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #0b0c10;
+      --card: #16181d;
+      --text: #e6e7ea;
+      --muted: #a3a7b0;
+      --accent: #7aa2f7;
+      --danger: #f7768e;
+      --border: #2a2f3a;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 24px;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    h1, h2 { margin: 0 0 12px; }
+    p { margin: 0 0 16px; color: var(--muted); }
+    .container { max-width: 1100px; margin: 0 auto; display: grid; gap: 16px; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+    .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+    .row > * { flex: 1 1 auto; }
+    .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    input, button, select {
+      background: #111318;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 14px;
+    }
+    input[type="number"] { width: 90px; }
+    button { cursor: pointer; }
+    button.primary { background: var(--accent); color: #0b0c10; font-weight: 600; }
+    button.ghost { background: transparent; }
+    button.danger { border-color: var(--danger); color: var(--danger); }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 10px; border-bottom: 1px solid var(--border); }
+    th { color: var(--muted); font-weight: 600; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; background: #1f2330; color: var(--muted); font-size: 12px; }
+    .error { color: var(--danger); font-weight: 600; }
+    .history-item { padding: 12px 0; border-bottom: 1px dashed var(--border); }
+    .history-item:last-child { border-bottom: none; }
+    .history-grid { display: grid; gap: 6px; }
+    .small { font-size: 12px; color: var(--muted); }
+    .stepper { display: inline-flex; align-items: center; gap: 8px; }
+    .stepper button { width: 44px; height: 44px; border-radius: 12px; font-size: 20px; }
+    .stepper .value { min-width: 28px; text-align: center; font-weight: 700; }
+    .name-row { display: flex; align-items: center; gap: 8px; }
+    .name-row button { padding: 6px 10px; font-size: 12px; }
+    .touch { min-height: 44px; }
+    .toggle { display: inline-flex; gap: 6px; }
+    .toggle button { padding: 8px 12px; min-height: 44px; border-radius: 10px; }
+    .toggle button.active { background: var(--accent); color: #0b0c10; font-weight: 700; }
+    .player-card { padding: 10px 0; border-bottom: 1px solid var(--border); }
+    .player-card:last-child { border-bottom: none; }
+    .player-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; }
+    .player-controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+    .rounds { display: grid; gap: 12px; }
+    .round-card { padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: #12151c; }
+    .round-header { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    .round-header .meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .mini-stepper { display: inline-flex; align-items: center; gap: 6px; }
+    .mini-stepper button { width: 36px; height: 36px; border-radius: 10px; font-size: 18px; }
+    .mini-stepper .value { min-width: 24px; text-align: center; font-weight: 700; }
+    .setting { display: inline-flex; align-items: center; gap: 6px; }
+    .setting .label { font-size: 12px; color: var(--muted); }
+    .muted { color: var(--muted); }
+    @media (max-width: 800px) {
+      table, thead, tbody, tr, th, td { display: block; }
+      thead { display: none; }
+      td { padding: 6px 0; border: none; }
+      .player-row { align-items: flex-start; }
+      .round-player { align-items: flex-start; }
+    }
+    .total-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); gap: 12px; }
+    .total-row .name { flex: 1 1 auto; text-align: left; }
+    .total-row .score { flex: 0 0 auto; }
+    .round-player { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+    .round-player .left { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  </style>
 </head>
-<body class="bg-light p-4">
-    <div class="container">
-        <h1 class="text-center mb-4" data-toggle="collapse" data-target="#newGameForm" aria-expanded="true" aria-controls="newGameForm" style="cursor: pointer;">Neues Spiel</h1>
-        <div id="newGameForm" class="collapse show">
-            <div class="d-flex mb-4">
-                <select id="existingGames" class="form-control mr-2" onchange="selectGame()">
-                    <option value="">Wähle ein bestehendes Spiel</option>
-                </select>
-                <input id="gameName" type="text" placeholder="Spielname eingeben" class="form-control mr-2">
-                <input id="maxRounds" type="number" placeholder="Maximale Runden" class="form-control mr-2" value="10">
-                <input id="offset" type="number" placeholder="Offset" class="form-control mr-2" value="4">
-                <button onclick="addGame()" class="btn btn-primary">Spiel hinzufügen</button>
+<body>
+  <div class="container">
+    <header class="card">
+      <h1>Redsgigi – Spielstand</h1>
+      <p>✅ = +(Ansage + Bonus), ❌ = -(Ansage + Bonus).</p>
+      <div class="row">
+        <div>
+          <div><strong>Runden</strong> <span id="round-count">0</span></div>
+          <div class="small"><span id="round-cards">1</span> Karte(n) in der letzten Runde</div>
+        </div>
+        <div class="controls">
+          <div class="setting">
+            <span class="label">Max Karten</span>
+            <div class="mini-stepper" aria-label="Maximale Karten">
+              <button id="max-cards-dec" class="touch">-</button>
+              <span id="max-cards-value" class="value">10</span>
+              <button id="max-cards-inc" class="touch">+</button>
             </div>
+          </div>
+          <div class="setting">
+            <span class="label">Bonus</span>
+            <div class="mini-stepper" aria-label="Punkte-Bonus">
+              <button id="offset-dec" class="touch">-</button>
+              <span id="offset-value" class="value">4</span>
+              <button id="offset-inc" class="touch">+</button>
+            </div>
+          </div>
+          <select id="dealer-select" class="touch"></select>
+          <button id="reset-game" class="ghost danger">Spiel zuruecksetzen</button>
         </div>
-        <div id="gamesList">
-            <!-- Spiele werden hier hinzugefügt -->
-        </div>
-    </div>
+      </div>
+      <div class="small">
+        <button id="add-player" class="ghost">Spieler hinzufuegen</button>
+      </div>
+      <div id="status" class="small"></div>
+    </header>
 
-    <script>
-        let games = JSON.parse(localStorage.getItem('games')) || [];
+    <section class="card">
+      <h2>Gesamtstand</h2>
+      <div id="totals" class="totals"></div>
+      <div class="small">Tippe auf einen Namen, um ihn zu aendern.</div>
+    </section>
 
-        function saveGames() {
-            localStorage.setItem('games', JSON.stringify(games));
+    <section class="card">
+      <h2>Runden</h2>
+      <div id="rounds" class="rounds"></div>
+    </section>
+  </div>
+
+  <script>
+    const storageKey = "redsgigi.score.v7";
+
+    const state = loadState() ?? {
+      players: [],
+      rounds: [],
+      settings: { maxCards: 10, offset: 4, startDealerId: null }
+    };
+
+    state.settings = { maxCards: 10, offset: 4, startDealerId: null, ...state.settings };
+
+    const elements = {
+      roundCount: document.getElementById("round-count"),
+      roundCards: document.getElementById("round-cards"),
+      rounds: document.getElementById("rounds"),
+      totals: document.getElementById("totals"),
+      status: document.getElementById("status"),
+      addPlayer: document.getElementById("add-player"),
+      maxCardsDec: document.getElementById("max-cards-dec"),
+      maxCardsInc: document.getElementById("max-cards-inc"),
+      maxCardsValue: document.getElementById("max-cards-value"),
+      offsetDec: document.getElementById("offset-dec"),
+      offsetInc: document.getElementById("offset-inc"),
+      offsetValue: document.getElementById("offset-value"),
+      dealerSelect: document.getElementById("dealer-select"),
+      resetGame: document.getElementById("reset-game")
+    };
+
+    function cardsForRound(roundIndex) {
+      const maxCards = clamp(state.settings.maxCards, 1, 20);
+      const cycle = maxCards + (maxCards - 1);
+      const pos = roundIndex % cycle;
+      if (pos < maxCards) {
+        return pos + 1;
+      }
+      return maxCards - (pos - maxCards) - 1;
+    }
+
+    function createId() {
+      if (typeof crypto !== "undefined" && crypto.randomUUID) {
+        return crypto.randomUUID();
+      }
+      return "id-" + Date.now() + "-" + Math.random().toString(16).slice(2);
+    }
+
+    function saveState() {
+      localStorage.setItem(storageKey, JSON.stringify(state));
+    }
+
+    function loadState() {
+      const raw = localStorage.getItem(storageKey);
+      if (!raw) {
+        return null;
+      }
+      try {
+        return JSON.parse(raw);
+      } catch {
+        return null;
+      }
+    }
+
+    function setStatus(message, isError = false) {
+      elements.status.textContent = message;
+      elements.status.classList.toggle("error", isError);
+    }
+
+    function clamp(value, min, max) {
+      return Math.min(Math.max(value, min), max);
+    }
+
+    function syncRounds() {
+      const maxCards = clamp(state.settings.maxCards, 1, 20);
+      const desired = maxCards + (maxCards - 1);
+      while (state.rounds.length < desired) {
+        state.rounds.push({ id: createId(), inputs: {} });
+      }
+      if (state.rounds.length > desired) {
+        state.rounds.length = desired;
+      }
+    }
+
+    function getStartDealerIndex() {
+      if (state.players.length === 0) {
+        return 0;
+      }
+      const index = state.players.findIndex(p => p.id === state.settings.startDealerId);
+      return index >= 0 ? index : 0;
+    }
+
+    function dealerForRound(roundIndex) {
+      if (state.players.length === 0) {
+        return "—";
+      }
+      const startIndex = getStartDealerIndex();
+      const dealerIndex = (startIndex + roundIndex) % state.players.length;
+      return state.players[dealerIndex].name;
+    }
+
+    function getRoundInput(roundId, playerId, cards) {
+      const round = state.rounds.find(r => r.id === roundId);
+      if (!round.inputs[playerId]) {
+        round.inputs[playerId] = { bid: 0, hit: null };
+      }
+      const entry = round.inputs[playerId];
+      const clampedBid = clamp(entry.bid, 0, cards);
+      if (clampedBid !== entry.bid) {
+        entry.bid = clampedBid;
+        saveState();
+      }
+      if (entry.hit !== null && typeof entry.hit !== "boolean") {
+        entry.hit = null;
+        saveState();
+      }
+      return entry;
+    }
+
+    function computeTotals() {
+      const totals = {};
+      const offset = clamp(state.settings.offset, 0, 20);
+
+      state.players.forEach(player => {
+        totals[player.id] = 0;
+      });
+
+      state.rounds.forEach((round, index) => {
+        const cards = cardsForRound(index);
+        let roundComplete = true;
+
+        state.players.forEach(player => {
+          const entry = getRoundInput(round.id, player.id, cards);
+          if (entry.hit === null) {
+            roundComplete = false;
+          }
+        });
+
+        if (!roundComplete) {
+          return;
         }
 
-        function addGame() {
-            const gameNameInput = document.getElementById('gameName');
-            const maxRoundsInput = document.getElementById('maxRounds');
-            const offsetInput = document.getElementById('offset');
-            const gameName = gameNameInput.value.trim() || new Date().toLocaleString();
-            const maxRounds = parseInt(maxRoundsInput.value.trim()) || 10;
-            const offset = parseInt(offsetInput.value.trim()) || 4;
-            if (gameName) {
-                games.push({ name: gameName, maxRounds: maxRounds, offset: offset, players: [], createdAt: new Date() });
-                gameNameInput.value = '';
-                maxRoundsInput.value = '10';
-                offsetInput.value = '4';
-                saveGames();
-                populateExistingGames();
-                selectGame(games.length - 1);
-            }
+        state.players.forEach(player => {
+          const entry = getRoundInput(round.id, player.id, cards);
+          const delta = entry.hit ? entry.bid + offset : -(entry.bid + offset);
+          totals[player.id] += delta;
+        });
+      });
+
+      return totals;
+    }
+
+    function renderTotals() {
+      elements.totals.innerHTML = "";
+
+      if (state.players.length === 0) {
+        elements.totals.textContent = "Noch keine Spieler.";
+        return;
+      }
+
+      const totals = computeTotals();
+      const sortedPlayers = state.players.slice().sort((a, b) => (totals[b.id] ?? 0) - (totals[a.id] ?? 0));
+      sortedPlayers.forEach(player => {
+        const row = document.createElement("div");
+        row.className = "total-row";
+
+        const name = document.createElement("button");
+        name.className = "ghost name";
+        name.textContent = player.name;
+        name.addEventListener("click", () => {
+          const nextName = prompt("Neuer Name:", player.name) ?? "";
+          const trimmed = nextName.trim();
+          if (!trimmed) {
+            return;
+          }
+          player.name = trimmed;
+          saveState();
+          render();
+        });
+
+        const score = document.createElement("div");
+        score.className = "score";
+        score.innerHTML = `${totals[player.id]} <span class="badge">Punkte</span>`;
+
+        row.appendChild(name);
+        row.appendChild(score);
+        elements.totals.appendChild(row);
+      });
+    }
+
+    function renderRounds() {
+      elements.rounds.innerHTML = "";
+
+      state.rounds.forEach((round, index) => {
+        const cards = cardsForRound(index);
+        const wrapper = document.createElement("div");
+        wrapper.className = "round-card";
+
+        const header = document.createElement("div");
+        header.className = "round-header";
+        header.innerHTML = `<strong>Runde ${index + 1}</strong>`;
+        const meta = document.createElement("div");
+        meta.className = "meta";
+        meta.innerHTML = `<span class="badge">${cards} Karte(n)</span><span class="badge">Geber: ${dealerForRound(index)}</span>`;
+        header.appendChild(meta);
+        wrapper.appendChild(header);
+
+        const list = document.createElement("div");
+        list.className = "round-grid";
+
+        state.players.forEach(player => {
+          const entry = getRoundInput(round.id, player.id, cards);
+          const row = document.createElement("div");
+          row.className = "round-player";
+
+          const left = document.createElement("div");
+          left.className = "left";
+          const name = document.createElement("div");
+          name.textContent = player.name;
+          left.appendChild(name);
+
+          const bid = createStepper(round.id, player.id, "bid", entry.bid, cards);
+          const hit = createHitToggle(round.id, player.id, entry.hit);
+
+          row.appendChild(left);
+          row.appendChild(bid);
+          row.appendChild(hit);
+          list.appendChild(row);
+        });
+
+        if (state.players.length === 0) {
+          const empty = document.createElement("div");
+          empty.className = "muted";
+          empty.textContent = "Spieler hinzufuegen, um diese Runde zu erfassen.";
+          list.appendChild(empty);
         }
 
-        function deleteGame(gameIndex) {
-            games.splice(gameIndex, 1);
-            saveGames();
-            populateExistingGames();
-            if (games.length > 0) {
-                selectGame(games.length - 1);
-            } else {
-                document.getElementById('gamesList').innerHTML = '';
-            }
+        wrapper.appendChild(list);
+        elements.rounds.appendChild(wrapper);
+      });
+    }
+
+    function createStepper(roundId, playerId, field, value, cards) {
+      const wrapper = document.createElement("div");
+      wrapper.className = "stepper";
+
+      const dec = document.createElement("button");
+      dec.textContent = "-";
+      dec.className = "touch";
+      dec.addEventListener("click", () => updateRoundInput(roundId, playerId, field, -1));
+
+      const val = document.createElement("span");
+      val.className = "value";
+      val.textContent = String(value);
+
+      const inc = document.createElement("button");
+      inc.textContent = "+";
+      inc.className = "touch";
+      inc.addEventListener("click", () => updateRoundInput(roundId, playerId, field, 1));
+
+      wrapper.appendChild(dec);
+      wrapper.appendChild(val);
+      wrapper.appendChild(inc);
+
+      if (value === 0) {
+        dec.disabled = true;
+      }
+      if (value === cards) {
+        inc.disabled = true;
+      }
+
+      return wrapper;
+    }
+
+    function createHitToggle(roundId, playerId, isHit) {
+      const wrapper = document.createElement("div");
+      wrapper.className = "toggle";
+
+      const hitBtn = document.createElement("button");
+      hitBtn.textContent = "✅";
+      hitBtn.title = "Treffer";
+      hitBtn.setAttribute("aria-label", "Treffer");
+      hitBtn.className = isHit === true ? "active" : "";
+      hitBtn.addEventListener("click", () => updateHit(roundId, playerId, true));
+
+      const missBtn = document.createElement("button");
+      missBtn.textContent = "❌";
+      missBtn.title = "Verfehlt";
+      missBtn.setAttribute("aria-label", "Verfehlt");
+      missBtn.className = isHit === false ? "active" : "";
+      missBtn.addEventListener("click", () => updateHit(roundId, playerId, false));
+
+      wrapper.appendChild(hitBtn);
+      wrapper.appendChild(missBtn);
+
+      return wrapper;
+    }
+
+    function updateRoundInput(roundId, playerId, field, delta) {
+      const roundIndex = state.rounds.findIndex(round => round.id === roundId);
+      const cards = cardsForRound(roundIndex);
+      const entry = getRoundInput(roundId, playerId, cards);
+      entry[field] = clamp(entry[field] + delta, 0, cards);
+      saveState();
+      render();
+    }
+
+    function updateHit(roundId, playerId, value) {
+      const roundIndex = state.rounds.findIndex(round => round.id === roundId);
+      const cards = cardsForRound(roundIndex);
+      const entry = getRoundInput(roundId, playerId, cards);
+      entry.hit = value;
+      saveState();
+      render();
+    }
+
+    function renderHeader() {
+      elements.roundCount.textContent = state.rounds.length;
+      const lastIndex = Math.max(0, state.rounds.length - 1);
+      elements.roundCards.textContent = cardsForRound(lastIndex);
+      elements.maxCardsValue.textContent = String(state.settings.maxCards);
+      elements.offsetValue.textContent = String(state.settings.offset);
+      elements.maxCardsDec.disabled = state.settings.maxCards <= 1;
+      elements.maxCardsInc.disabled = state.settings.maxCards >= 20;
+      elements.offsetDec.disabled = state.settings.offset <= 0;
+      elements.offsetInc.disabled = state.settings.offset >= 20;
+      renderDealerSelect();
+    }
+
+    function renderDealerSelect() {
+      elements.dealerSelect.innerHTML = "";
+      if (state.players.length === 0) {
+        const opt = document.createElement("option");
+        opt.textContent = "Startgeber: —";
+        opt.value = "";
+        elements.dealerSelect.appendChild(opt);
+        elements.dealerSelect.disabled = true;
+        return;
+      }
+
+      elements.dealerSelect.disabled = false;
+      const defaultOption = document.createElement("option");
+      defaultOption.textContent = "Startgeber waehlen";
+      defaultOption.value = "";
+      elements.dealerSelect.appendChild(defaultOption);
+
+      state.players.forEach(player => {
+        const opt = document.createElement("option");
+        opt.value = player.id;
+        opt.textContent = player.name;
+        if (player.id === state.settings.startDealerId) {
+          opt.selected = true;
         }
+        elements.dealerSelect.appendChild(opt);
+      });
+    }
 
-        function selectGame(gameIndex = null) {
-            const selectedGameIndex = gameIndex !== null ? gameIndex : document.getElementById('existingGames').value;
-            if (selectedGameIndex !== "") {
-                renderGames(selectedGameIndex);
-            }
-        }
+    function render() {
+      setStatus("");
+      syncRounds();
+      renderHeader();
+      renderTotals();
+      renderRounds();
+    }
 
-        function addPlayer(gameIndex) {
-            const playerNameInput = document.getElementById(`playerName-${gameIndex}`);
-            const playerName = playerNameInput.value.trim();
-            if (playerName) {
-                games[gameIndex].players.push({ name: playerName, rounds: [], points: 0, wonRounds: 0, lostRounds: 0 });
-                playerNameInput.value = '';
-                saveGames();
-                renderGames(gameIndex);
-            }
-        }
+    elements.addPlayer.addEventListener("click", () => {
+      const defaultName = `Spieler ${state.players.length + 1}`;
+      const name = prompt("Spielername:", defaultName) ?? defaultName;
+      const trimmed = name.trim() || defaultName;
+      state.players.push({ id: createId(), name: trimmed });
+      if (!state.settings.startDealerId) {
+        state.settings.startDealerId = state.players[0].id;
+      }
+      saveState();
+      render();
+    });
 
-        function removePlayer(gameIndex, playerIndex) {
-            games[gameIndex].players.splice(playerIndex, 1);
-            saveGames();
-            renderGames(gameIndex);
-        }
+    elements.maxCardsDec.addEventListener("click", () => {
+      state.settings.maxCards = clamp(state.settings.maxCards - 1, 1, 20);
+      saveState();
+      render();
+    });
 
-        function addRound(gameIndex, playerIndex, roundIndex) {
-            const roundScoreInput = document.getElementById(`roundScore-${gameIndex}-${playerIndex}-${roundIndex}`);
-            const roundScore = parseInt(roundScoreInput.value.trim());
-            if (!isNaN(roundScore) && roundScore <= roundIndex + 1) {
-                games[gameIndex].players[playerIndex].rounds[roundIndex] = roundScore;
-                saveGames();
-                renderGames(gameIndex);
-            } else {
-                alert(`Der Wert muss eine Zahl und kleiner oder gleich der Rundenzahl (${roundIndex + 1}) sein.`);
-                roundScoreInput.value = '';
-            }
-        }
+    elements.maxCardsInc.addEventListener("click", () => {
+      state.settings.maxCards = clamp(state.settings.maxCards + 1, 1, 20);
+      saveState();
+      render();
+    });
 
-        function toggleMadePoints(gameIndex, playerIndex, roundIndex) {
-            const player = games[gameIndex].players[playerIndex];
-            player.madePoints = player.madePoints || [];
-            player.madePoints[roundIndex] = player.madePoints[roundIndex] === true ? false : player.madePoints[roundIndex] === false ? null : true;
-            if (player.madePoints[roundIndex] === true) {
-                player.wonRounds = (player.wonRounds || 0) + 1;
-                player.lostRounds = (player.lostRounds || 0) - 1;
-            } else if (player.madePoints[roundIndex] === false) {
-                player.wonRounds = (player.wonRounds || 0) - 1;
-                player.lostRounds = (player.lostRounds || 0) + 1;
-            }
-            recalculatePoints(gameIndex);
-            saveGames();
-            renderGames(gameIndex);
-        }
+    elements.offsetDec.addEventListener("click", () => {
+      state.settings.offset = clamp(state.settings.offset - 1, 0, 20);
+      saveState();
+      render();
+    });
 
-        function recalculatePoints(gameIndex) {
-            const offset = games[gameIndex].offset;
-            games[gameIndex].players.forEach(player => {
-                player.points = 0;
-                player.wonRounds = 0;
-                player.lostRounds = 0;
-                player.rounds.forEach((assumedPoints, roundIndex) => {
-                    if (assumedPoints !== undefined && player.madePoints && player.madePoints[roundIndex] !== undefined) {
-                        if (player.madePoints[roundIndex] === true) {
-                            player.points += (assumedPoints === 0 ? offset : assumedPoints + offset);
-                            player.wonRounds++;
-                        } else if (player.madePoints[roundIndex] === false) {
-                            player.points -= assumedPoints + offset;
-                            player.lostRounds++;
-                        }
-                    }
-                });
-            });
-        }
+    elements.offsetInc.addEventListener("click", () => {
+      state.settings.offset = clamp(state.settings.offset + 1, 0, 20);
+      saveState();
+      render();
+    });
 
-        function getBadgeClass(points) {
-            if (points > 0) {
-                return 'badge-success';
-            } else if (points < 0) {
-                return 'badge-warning';
-            } else {
-                return 'badge-info';
-            }
-        }
+    elements.dealerSelect.addEventListener("change", () => {
+      const value = elements.dealerSelect.value;
+      state.settings.startDealerId = value || state.players[0]?.id || null;
+      saveState();
+      render();
+    });
 
-        function renderGames(selectedGameIndex = null) {
-            const gamesList = document.getElementById('gamesList');
-            gamesList.innerHTML = '';
-            games.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-            const game = games[selectedGameIndex];
-            const gameDiv = document.createElement('div');
-            gameDiv.className = 'mb-4 p-4 border rounded bg-white';
-            gameDiv.innerHTML = `
-                <h2 class="text-center mb-2">${game.name} (Maximale Runden: ${game.maxRounds})</h2>
-                <div class="mb-2 d-flex">
-                    <input id="playerName-${selectedGameIndex}" type="text" placeholder="Spielername eingeben" class="form-control mr-2">
-                    <button onclick="addPlayer(${selectedGameIndex})" class="btn btn-success">Spieler hinzufügen</button>
-                </div>
-                <div class="mb-2 p-2 border rounded">
-                    <h5 class="text-center">Statistik</h5>
-                    ${[...game.players].sort((a, b) => b.points - a.points).map(player => `
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <span class="w-25">${player.name}</span>
-                            <span class="w-25 badge ${getBadgeClass(player.points)}">${player.points}</span>
-                            <span class="w-25"><span class="text-success">${player.wonRounds || 0}</span>/<span class="text-danger">${player.lostRounds || 0}</span></span>
-                        </div>
-                    `).join('')}
-                </div>
-                <h5 class="text-center mt-4">Runden</h5>
-                <table class="table table-bordered mb-2">
-                    <thead>
-                        <tr>
-                            <th>Runde</th>
-                            ${game.players.map((player, playerIndex) => `
-                                <th>
-                                    <div class="d-flex justify-content-between align-items-center">
-                                        <span class="w-50">${player.name}</span>
-                                        <span class="badge w-25 ${getBadgeClass(player.points)}">${player.points}</span>
-                                        <button onclick="removePlayer(${selectedGameIndex}, ${playerIndex})" class="btn btn-sm">❌</button>
-                                    </div>
-                                </th>
-                            `).join('')}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${Array.from({ length: game.maxRounds * 2 - 1 }, (_, roundIndex) => {
-                            const sumAssumedPoints = game.players.reduce((sum, player) => sum + (player.rounds[roundIndex] || 0), 0);
-                            const roundNumber = roundIndex < game.maxRounds ? roundIndex + 1 : game.maxRounds * 2 - 1 - roundIndex;
-                            const sumClass = sumAssumedPoints > roundNumber ? 'text-danger' : sumAssumedPoints < roundNumber ? 'text-success' : '';
-                            return `
-                                <tr>
-                                    <td><small class="${sumClass}">${sumAssumedPoints} / </small><span class="font-weight-bold">${roundNumber}</span></td>
-                                    ${game.players.map((player, playerIndex) => `
-                                        <td class="${roundIndex % game.players.length === playerIndex ? 'bg-light' : ''}">
-                                            <div class="d-flex align-items-center">
-                                                <input id="roundScore-${selectedGameIndex}-${playerIndex}-${roundIndex}" type="number" inputmode="numeric" class="form-control mb-2 mr-2" value="${player.rounds[roundIndex] !== undefined ? player.rounds[roundIndex] : ''}" onchange="addRound(${selectedGameIndex}, ${playerIndex}, ${roundIndex})" tabindex="0">
-                                                <span onclick="toggleMadePoints(${selectedGameIndex}, ${playerIndex}, ${roundIndex})" style="cursor: pointer;">
-                                                    ${player.madePoints && player.madePoints[roundIndex] !== undefined ? 
-                                                        (player.madePoints[roundIndex] === true ? '✅' : player.madePoints[roundIndex] === false ? '❌' : '⬜') : '⬜'}
-                                                </span>
-                                            </div>
-                                        </td>
-                                    `).join('')}
-                                </tr>
-                            `;
-                        }).join('')}
-                    </tbody>
-                </table>
-                <button onclick="deleteGame(${selectedGameIndex})" class="btn btn-danger btn-block mt-2">Spiel löschen</button>
-            `;
-            gamesList.appendChild(gameDiv);
+    elements.resetGame.addEventListener("click", () => {
+      if (!confirm("Spielstand wirklich zuruecksetzen?")) {
+        return;
+      }
+      state.players = [];
+      state.rounds = [];
+      state.settings = { maxCards: 10, offset: 4, startDealerId: null };
+      saveState();
+      render();
+    });
 
-            // Add event listeners to input fields for single-click focus
-            const inputFields = gameDiv.querySelectorAll('input[type="number"]');
-            inputFields.forEach(input => {
-                input.addEventListener('mousedown', (event) => {
-                    event.preventDefault();
-                    input.focus();
-                });
-            });
-        }
-
-        function populateExistingGames() {
-            const existingGamesSelect = document.getElementById('existingGames');
-            existingGamesSelect.innerHTML = '<option value="">Wähle ein bestehendes Spiel</option>';
-            games.forEach((game, index) => {
-                const option = document.createElement('option');
-                option.value = index;
-                option.textContent = game.name;
-                existingGamesSelect.appendChild(option);
-            });
-            if (games.length > 0) {
-                existingGamesSelect.value = games.length - 1;
-                selectGame(games.length - 1);
-            }
-        }
-
-        function customConfirm(message) {
-            return new Promise((resolve) => {
-                const modal = document.createElement('div');
-                modal.className = 'modal';
-                modal.style.display = 'block';
-                modal.innerHTML = `
-                    <div class="modal-dialog">
-                        <div class="modal-content">
-                            <div class="modal-header">
-                                <h5 class="modal-title">Bestätigung</h5>
-                                <button type="button" class="close" data-dismiss="modal" aria-label="Schließen">
-                                    <span aria-hidden="true">&times;</span>
-                                </button>
-                            </div>
-                            <div class="modal-body">
-                                <p>${message}</p>
-                            </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-primary" id="yesButton">Ja</button>
-                                <button type="button" class="btn btn-secondary" id="noButton">Nein</button>
-                            </div>
-                        </div>
-                    </div>
-                `;
-                document.body.appendChild(modal);
-
-                document.getElementById('yesButton').onclick = () => {
-                    resolve(true);
-                    modal.remove();
-                };
-                document.getElementById('noButton').onclick = () => {
-                    resolve(false);
-                    modal.remove();
-                };
-            });
-        }
-
-        // Initial render
-        populateExistingGames();
-    </script>
+    render();
+  </script>
 </body>
 </html>
+

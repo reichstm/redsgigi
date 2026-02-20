@@ -88,41 +88,48 @@
     .total-row .score { flex: 0 0 auto; }
     .round-player { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
     .round-player .left { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+    .collapsed { display: none; }
   </style>
 </head>
 <body>
   <div class="container">
     <header class="card">
       <h1>Redsgigi – Spielstand</h1>
-      <p>✅ = +(Ansage + Bonus), ❌ = -(Ansage + Bonus).</p>
-      <div class="row">
-        <div>
-          <div><strong>Runden</strong> <span id="round-count">0</span></div>
-          <div class="small"><span id="round-cards">1</span> Karte(n) in der letzten Runde</div>
-        </div>
-        <div class="controls">
-          <div class="setting">
-            <span class="label">Max Karten</span>
-            <div class="mini-stepper" aria-label="Maximale Karten">
-              <button id="max-cards-dec" class="touch">-</button>
-              <span id="max-cards-value" class="value">10</span>
-              <button id="max-cards-inc" class="touch">+</button>
-            </div>
-          </div>
-          <div class="setting">
-            <span class="label">Bonus</span>
-            <div class="mini-stepper" aria-label="Punkte-Bonus">
-              <button id="offset-dec" class="touch">-</button>
-              <span id="offset-value" class="value">4</span>
-              <button id="offset-inc" class="touch">+</button>
-            </div>
-          </div>
-          <select id="dealer-select" class="touch"></select>
-          <button id="reset-game" class="ghost danger">Spiel zuruecksetzen</button>
-        </div>
+      <div class="row" style="justify-content: flex-end;">
+        <button id="toggle-setup" class="ghost">Setup anzeigen</button>
+        <button id="toggle-legend" class="ghost">Regel anzeigen</button>
       </div>
-      <div class="small">
-        <button id="add-player" class="ghost">Spieler hinzufuegen</button>
+      <div id="start-settings">
+        <p id="legend-text">✅ = +(Ansage + Bonus), ❌ = -(Ansage + Bonus).</p>
+        <div class="row">
+          <div>
+            <div><strong>Runden</strong> <span id="round-count">0</span></div>
+            <div class="small"><span id="round-cards">1</span> Karte(n) in der letzten Runde</div>
+          </div>
+          <div class="controls">
+            <div class="setting">
+              <span class="label">Max Karten</span>
+              <div class="mini-stepper" aria-label="Maximale Karten">
+                <button id="max-cards-dec" class="touch">-</button>
+                <span id="max-cards-value" class="value">10</span>
+                <button id="max-cards-inc" class="touch">+</button>
+              </div>
+            </div>
+            <div class="setting">
+              <span class="label">Bonus</span>
+              <div class="mini-stepper" aria-label="Punkte-Bonus">
+                <button id="offset-dec" class="touch">-</button>
+                <span id="offset-value" class="value">4</span>
+                <button id="offset-inc" class="touch">+</button>
+              </div>
+            </div>
+            <select id="dealer-select" class="touch"></select>
+            <button id="reset-game" class="ghost danger">Spiel zuruecksetzen</button>
+          </div>
+        </div>
+        <div class="small">
+          <button id="add-player" class="ghost">Spieler hinzufuegen</button>
+        </div>
       </div>
       <div id="status" class="small"></div>
     </header>
@@ -145,10 +152,18 @@
     const state = loadState() ?? {
       players: [],
       rounds: [],
-      settings: { maxCards: 10, offset: 4, startDealerId: null }
+      settings: { maxCards: 10, offset: 4, startDealerId: null, showSetup: true, autoCollapsed: false, showLegend: false }
     };
 
-    state.settings = { maxCards: 10, offset: 4, startDealerId: null, ...state.settings };
+    state.settings = {
+      maxCards: 10,
+      offset: 4,
+      startDealerId: null,
+      showSetup: true,
+      autoCollapsed: false,
+      showLegend: false,
+      ...state.settings
+    };
 
     const elements = {
       roundCount: document.getElementById("round-count"),
@@ -156,6 +171,10 @@
       rounds: document.getElementById("rounds"),
       totals: document.getElementById("totals"),
       status: document.getElementById("status"),
+      startSettings: document.getElementById("start-settings"),
+      toggleSetup: document.getElementById("toggle-setup"),
+      toggleLegend: document.getElementById("toggle-legend"),
+      legendText: document.getElementById("legend-text"),
       addPlayer: document.getElementById("add-player"),
       maxCardsDec: document.getElementById("max-cards-dec"),
       maxCardsInc: document.getElementById("max-cards-inc"),
@@ -493,12 +512,44 @@
       });
     }
 
+    function isRoundComplete(roundIndex) {
+      if (state.players.length === 0) {
+        return false;
+      }
+      const round = state.rounds[roundIndex];
+      if (!round) {
+        return false;
+      }
+      const cards = cardsForRound(roundIndex);
+      return state.players.every(player => {
+        const entry = getRoundInput(round.id, player.id, cards);
+        return entry.hit !== null;
+      });
+    }
+
+    function updateStartSettingsVisibility() {
+      if (!elements.startSettings) {
+        return;
+      }
+      const roundComplete = isRoundComplete(0);
+      if (roundComplete && !state.settings.autoCollapsed) {
+        state.settings.showSetup = false;
+        state.settings.autoCollapsed = true;
+        saveState();
+      }
+      elements.startSettings.classList.toggle("collapsed", !state.settings.showSetup);
+      elements.legendText?.classList.toggle("collapsed", !state.settings.showLegend);
+      elements.toggleSetup.textContent = state.settings.showSetup ? "Setup ausblenden" : "Setup anzeigen";
+      elements.toggleLegend.textContent = state.settings.showLegend ? "Regel ausblenden" : "Regel anzeigen";
+    }
+
     function render() {
       setStatus("");
       syncRounds();
       renderHeader();
       renderTotals();
       renderRounds();
+      updateStartSettingsVisibility();
     }
 
     elements.addPlayer.addEventListener("click", () => {
@@ -544,13 +595,25 @@
       render();
     });
 
+    elements.toggleSetup.addEventListener("click", () => {
+      state.settings.showSetup = !state.settings.showSetup;
+      saveState();
+      updateStartSettingsVisibility();
+    });
+
+    elements.toggleLegend.addEventListener("click", () => {
+      state.settings.showLegend = !state.settings.showLegend;
+      saveState();
+      updateStartSettingsVisibility();
+    });
+
     elements.resetGame.addEventListener("click", () => {
       if (!confirm("Spielstand wirklich zuruecksetzen?")) {
         return;
       }
       state.players = [];
       state.rounds = [];
-      state.settings = { maxCards: 10, offset: 4, startDealerId: null };
+      state.settings = { maxCards: 10, offset: 4, startDealerId: null, showSetup: true, autoCollapsed: false, showLegend: false };
       saveState();
       render();
     });

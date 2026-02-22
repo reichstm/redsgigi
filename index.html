@@ -93,6 +93,7 @@
     }
     .total-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); gap: 12px; }
     .total-row .name { flex: 1 1 auto; text-align: left; }
+    .total-row .right { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 8px; }
     .total-row .score { flex: 0 0 auto; }
     .round-player {
       display: grid;
@@ -109,6 +110,30 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+    }
+    .dialog-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.55);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      z-index: 999;
+    }
+    .dialog-card {
+      width: min(520px, 100%);
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      display: grid;
+      gap: 10px;
+    }
+    .dialog-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
     }
     .collapsed { display: none; }
   </style>
@@ -175,6 +200,17 @@
     </section>
   </div>
 
+  <div id="name-dialog-backdrop" class="dialog-backdrop collapsed" aria-hidden="true">
+    <div class="dialog-card" role="dialog" aria-modal="true" aria-labelledby="name-dialog-title">
+      <strong id="name-dialog-title">Name eingeben</strong>
+      <input id="name-dialog-input" class="touch" type="text" autocomplete="off" />
+      <div class="dialog-actions">
+        <button id="name-dialog-cancel" class="ghost touch">Abbrechen</button>
+        <button id="name-dialog-save" class="primary touch">Speichern</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     const storageKey = "redsgigi.score.v7";
 
@@ -213,8 +249,59 @@
       offsetInc: document.getElementById("offset-inc"),
       offsetValue: document.getElementById("offset-value"),
       dealerSelect: document.getElementById("dealer-select"),
-      resetGame: document.getElementById("reset-game")
+      resetGame: document.getElementById("reset-game"),
+      nameDialogBackdrop: document.getElementById("name-dialog-backdrop"),
+      nameDialogTitle: document.getElementById("name-dialog-title"),
+      nameDialogInput: document.getElementById("name-dialog-input"),
+      nameDialogCancel: document.getElementById("name-dialog-cancel"),
+      nameDialogSave: document.getElementById("name-dialog-save")
     };
+
+    let nameDialogSubmit = null;
+
+    function openNameDialog(options) {
+      const {
+        title,
+        initialValue = "",
+        placeholder = "",
+        saveLabel = "Speichern",
+        onSubmit
+      } = options;
+
+      nameDialogSubmit = onSubmit;
+      elements.nameDialogTitle.textContent = title;
+      elements.nameDialogInput.value = initialValue;
+      elements.nameDialogInput.placeholder = placeholder;
+      elements.nameDialogSave.textContent = saveLabel;
+      elements.nameDialogBackdrop.classList.remove("collapsed");
+      elements.nameDialogBackdrop.setAttribute("aria-hidden", "false");
+
+      requestAnimationFrame(() => {
+        elements.nameDialogInput.focus();
+        if (initialValue) {
+          elements.nameDialogInput.select();
+        }
+      });
+    }
+
+    function closeNameDialog() {
+      elements.nameDialogBackdrop.classList.add("collapsed");
+      elements.nameDialogBackdrop.setAttribute("aria-hidden", "true");
+      elements.nameDialogInput.value = "";
+      elements.nameDialogInput.placeholder = "";
+      nameDialogSubmit = null;
+    }
+
+    function submitNameDialog() {
+      if (typeof nameDialogSubmit !== "function") {
+        closeNameDialog();
+        return;
+      }
+      const shouldClose = nameDialogSubmit(elements.nameDialogInput.value);
+      if (shouldClose !== false) {
+        closeNameDialog();
+      }
+    }
 
     function cardsForRound(roundIndex) {
       const maxCards = clamp(state.settings.maxCards, 1, 20);
@@ -355,22 +442,57 @@
         name.className = "ghost name";
         name.textContent = player.name;
         name.addEventListener("click", () => {
-          const nextName = prompt("Neuer Name:", player.name) ?? "";
-          const trimmed = nextName.trim();
-          if (!trimmed) {
-            return;
-          }
-          player.name = trimmed;
-          saveState();
-          render();
+          openNameDialog({
+            title: "Spielername aendern",
+            initialValue: player.name,
+            saveLabel: "Speichern",
+            onSubmit: (rawValue) => {
+              const trimmed = rawValue.trim();
+              if (!trimmed) {
+                setStatus("Name darf nicht leer sein.", true);
+                return false;
+              }
+              player.name = trimmed;
+              saveState();
+              render();
+              return true;
+            }
+          });
         });
+
+        const right = document.createElement("div");
+        right.className = "right";
 
         const score = document.createElement("div");
         score.className = "score";
         score.innerHTML = `${totals[player.id]} <span class="badge">Punkte</span>`;
 
+        const remove = document.createElement("button");
+        remove.className = "ghost danger touch";
+        remove.textContent = "Entfernen";
+        remove.title = `${player.name} entfernen`;
+        remove.setAttribute("aria-label", `${player.name} entfernen`);
+        remove.addEventListener("click", () => {
+          if (!confirm(`Spieler \"${player.name}\" wirklich entfernen?`)) {
+            return;
+          }
+          state.players = state.players.filter(p => p.id !== player.id);
+          state.rounds.forEach(round => {
+            if (round?.inputs && round.inputs[player.id]) {
+              delete round.inputs[player.id];
+            }
+          });
+          if (!state.players.some(p => p.id === state.settings.startDealerId)) {
+            state.settings.startDealerId = state.players[0]?.id ?? null;
+          }
+          saveState();
+          render();
+        });
+
         row.appendChild(name);
-        row.appendChild(score);
+        right.appendChild(score);
+        right.appendChild(remove);
+        row.appendChild(right);
         elements.totals.appendChild(row);
       });
     }
@@ -590,14 +712,40 @@
 
     elements.addPlayer.addEventListener("click", () => {
       const defaultName = `Spieler ${state.players.length + 1}`;
-      const name = prompt("Spielername:", defaultName) ?? defaultName;
-      const trimmed = name.trim() || defaultName;
-      state.players.push({ id: createId(), name: trimmed });
-      if (!state.settings.startDealerId) {
-        state.settings.startDealerId = state.players[0].id;
+      openNameDialog({
+        title: "Neuen Spieler anlegen",
+        initialValue: "",
+        placeholder: defaultName,
+        saveLabel: "Hinzufuegen",
+        onSubmit: (rawValue) => {
+          const trimmed = rawValue.trim() || defaultName;
+          state.players.push({ id: createId(), name: trimmed });
+          if (!state.settings.startDealerId) {
+            state.settings.startDealerId = state.players[0].id;
+          }
+          saveState();
+          render();
+          return true;
+        }
+      });
+    });
+
+    elements.nameDialogCancel.addEventListener("click", closeNameDialog);
+    elements.nameDialogSave.addEventListener("click", submitNameDialog);
+    elements.nameDialogInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        submitNameDialog();
       }
-      saveState();
-      render();
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeNameDialog();
+      }
+    });
+    elements.nameDialogBackdrop.addEventListener("click", (event) => {
+      if (event.target === elements.nameDialogBackdrop) {
+        closeNameDialog();
+      }
     });
 
     elements.maxCardsDec.addEventListener("click", () => {

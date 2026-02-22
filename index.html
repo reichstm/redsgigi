@@ -81,13 +81,35 @@
       thead { display: none; }
       td { padding: 6px 0; border: none; }
       .player-row { align-items: flex-start; }
-      .round-player { align-items: flex-start; }
+      .round-player {
+        grid-template-columns: 1fr;
+        align-items: flex-start;
+      }
+      .round-player .left,
+      .round-player .stepper,
+      .round-player .toggle {
+        justify-self: start;
+      }
     }
     .total-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); gap: 12px; }
     .total-row .name { flex: 1 1 auto; text-align: left; }
     .total-row .score { flex: 0 0 auto; }
-    .round-player { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
-    .round-player .left { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+    .round-player {
+      display: grid;
+      grid-template-columns: minmax(140px, 1fr) auto auto;
+      gap: 10px;
+      align-items: center;
+    }
+    .round-player .left {
+      display: flex;
+      align-items: center;
+      min-width: 0;
+    }
+    .round-player-name {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
     .collapsed { display: none; }
   </style>
 </head>
@@ -100,7 +122,6 @@
         <button id="toggle-legend" class="ghost">Regel anzeigen</button>
       </div>
       <div id="start-settings">
-        <p id="legend-text">✅ = +(Ansage + Bonus), ❌ = -(Ansage + Bonus).</p>
         <div class="row">
           <div>
             <div><strong>Runden</strong> <span id="round-count">0</span></div>
@@ -129,6 +150,14 @@
         </div>
         <div class="small">
           <button id="add-player" class="ghost">Spieler hinzufuegen</button>
+        </div>
+      </div>
+      <div id="legend-section" class="small">
+        <div id="legend-text">
+          <p><strong>Regeln (kurz):</strong></p>
+          <p>Jeder sagt pro Runde seine erwarteten Stiche (<em>Ansage</em>) an.</p>
+          <p>Wenn die Ansage stimmt: ✅ <strong>+(Ansage + Bonus)</strong><br>Wenn sie nicht stimmt: ❌ <strong>-(Ansage + Bonus)</strong></p>
+          <p><strong>Kartenfarben-Reihenfolge (hoch nach niedrig, franz. Blatt):</strong><br>♠️ Piek &gt; ♥️ Herz &gt; ♦️ Karo &gt; ♣️ Kreuz</p>
         </div>
       </div>
       <div id="status" class="small"></div>
@@ -172,6 +201,7 @@
       totals: document.getElementById("totals"),
       status: document.getElementById("status"),
       startSettings: document.getElementById("start-settings"),
+      legendSection: document.getElementById("legend-section"),
       toggleSetup: document.getElementById("toggle-setup"),
       toggleLegend: document.getElementById("toggle-legend"),
       legendText: document.getElementById("legend-text"),
@@ -350,6 +380,10 @@
 
       state.rounds.forEach((round, index) => {
         const cards = cardsForRound(index);
+        const totalBid = state.players.reduce((sum, player) => {
+          const entry = getRoundInput(round.id, player.id, cards);
+          return sum + entry.bid;
+        }, 0);
         const wrapper = document.createElement("div");
         wrapper.className = "round-card";
 
@@ -358,7 +392,7 @@
         header.innerHTML = `<strong>Runde ${index + 1}</strong>`;
         const meta = document.createElement("div");
         meta.className = "meta";
-        meta.innerHTML = `<span class="badge">${cards} Karte(n)</span><span class="badge">Geber: ${dealerForRound(index)}</span>`;
+        meta.innerHTML = `<span class="badge">${cards} Karte(n)</span><span class="badge">Geber: ${dealerForRound(index)}</span><span class="badge">Ansagen: ${totalBid} von ${cards}</span>`;
         header.appendChild(meta);
         wrapper.appendChild(header);
 
@@ -373,7 +407,9 @@
           const left = document.createElement("div");
           left.className = "left";
           const name = document.createElement("div");
+          name.className = "round-player-name";
           name.textContent = player.name;
+          name.title = player.name;
           left.appendChild(name);
 
           const bid = createStepper(round.id, player.id, "bid", entry.bid, cards);
@@ -538,7 +574,7 @@
         saveState();
       }
       elements.startSettings.classList.toggle("collapsed", !state.settings.showSetup);
-      elements.legendText?.classList.toggle("collapsed", !state.settings.showLegend);
+      elements.legendSection?.classList.toggle("collapsed", !state.settings.showLegend);
       elements.toggleSetup.textContent = state.settings.showSetup ? "Setup ausblenden" : "Setup anzeigen";
       elements.toggleLegend.textContent = state.settings.showLegend ? "Regel ausblenden" : "Regel anzeigen";
     }

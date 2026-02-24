@@ -104,12 +104,20 @@
     .round-player .left {
       display: flex;
       align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
       min-width: 0;
     }
     .round-player-name {
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+    }
+    .round-player-points {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
     }
     .dialog-backdrop {
       position: fixed;
@@ -424,6 +432,39 @@
       return totals;
     }
 
+    function computeRoundScores() {
+      const offset = clamp(state.settings.offset, 0, 20);
+      const runningTotals = {};
+      const byRound = {};
+
+      state.players.forEach(player => {
+        runningTotals[player.id] = 0;
+      });
+
+      state.rounds.forEach((round, index) => {
+        const cards = cardsForRound(index);
+        const complete = state.players.length > 0 && state.players.every(player => {
+          const entry = getRoundInput(round.id, player.id, cards);
+          return entry.hit !== null;
+        });
+
+        if (complete) {
+          state.players.forEach(player => {
+            const entry = getRoundInput(round.id, player.id, cards);
+            const delta = entry.hit ? entry.bid + offset : -(entry.bid + offset);
+            runningTotals[player.id] += delta;
+          });
+        }
+
+        byRound[round.id] = {
+          complete,
+          totals: { ...runningTotals }
+        };
+      });
+
+      return byRound;
+    }
+
     function renderTotals() {
       elements.totals.innerHTML = "";
 
@@ -499,6 +540,7 @@
 
     function renderRounds() {
       elements.rounds.innerHTML = "";
+      const roundScores = computeRoundScores();
 
       state.rounds.forEach((round, index) => {
         const cards = cardsForRound(index);
@@ -520,6 +562,7 @@
 
         const list = document.createElement("div");
         list.className = "round-grid";
+        const roundScore = roundScores[round.id];
 
         state.players.forEach(player => {
           const entry = getRoundInput(round.id, player.id, cards);
@@ -533,6 +576,13 @@
           name.textContent = player.name;
           name.title = player.name;
           left.appendChild(name);
+
+          if (roundScore?.complete) {
+            const points = document.createElement("div");
+            points.className = "round-player-points";
+            points.innerHTML = `<span class="badge">${roundScore.totals[player.id] ?? 0}</span>`;
+            left.appendChild(points);
+          }
 
           const bid = createStepper(round.id, player.id, "bid", entry.bid, cards);
           const hit = createHitToggle(round.id, player.id, entry.hit);

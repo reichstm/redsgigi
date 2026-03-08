@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <title>Redsgigi – Spielstand</title>
   <style>
     :root {
@@ -23,6 +23,7 @@
       font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
       background: var(--bg);
       color: var(--text);
+      touch-action: manipulation;
     }
     h1, h2 { margin: 0 0 12px; }
     p { margin: 0 0 16px; color: var(--muted); }
@@ -98,7 +99,7 @@
     .round-player {
       display: grid;
       grid-template-columns: minmax(140px, 1fr) auto auto;
-      gap: 10px;
+      gap: 10px 24px;
       align-items: center;
     }
     .round-player .left {
@@ -144,13 +145,19 @@
       gap: 8px;
     }
     .collapsed { display: none; }
+    .round-collapsed .round-grid { display: none; }
+    .round-header { cursor: pointer; user-select: none; }
+    .round-summary { font-size: 13px; color: var(--muted); padding: 4px 0; }
+    .badge-under { background: #2a1a3a; color: #bb9af7; font-weight: 700; }
+    .badge-even { background: #1a3a2a; color: #73daca; font-weight: 700; }
+    .badge-over { background: #3a3a1a; color: #e0af68; font-weight: 700; }
   </style>
 </head>
 <body>
   <div class="container">
     <header class="card">
       <h1>Redsgigi – Spielstand</h1>
-      <div class="row" style="justify-content: flex-end;">
+      <div class="row" style="justify-content: flex-end; margin-bottom: 1em;">
         <button id="toggle-setup" class="ghost">Setup anzeigen</button>
         <button id="toggle-legend" class="ghost">Regel anzeigen</button>
       </div>
@@ -158,7 +165,7 @@
         <div class="row">
           <div>
             <div><strong>Runden</strong> <span id="round-count">0</span></div>
-            <div class="small"><span id="round-cards">1</span> Karte(n) in der letzten Runde</div>
+            <div class="small">Naechste Runde: <span id="round-cards">1</span> Karte(n) · Geber: <span id="round-dealer">—</span></div>
           </div>
           <div class="controls">
             <div class="setting">
@@ -177,12 +184,19 @@
                 <button id="offset-inc" class="touch">+</button>
               </div>
             </div>
-            <select id="dealer-select" class="touch"></select>
-            <button id="reset-game" class="ghost danger">Spiel zuruecksetzen</button>
+            <div class="setting">
+              <span class="label">Geber</span>
+              <select id="dealer-select" class="touch"></select>
+            </div>
           </div>
         </div>
-        <div class="small">
+        <div class="controls" style="margin-top: 8px;">
           <button id="add-player" class="ghost">Spieler hinzufuegen</button>
+          <button id="new-game" class="ghost">Neue Partie</button>
+          <button id="export-game" class="ghost">Export</button>
+          <button id="import-game" class="ghost">Import</button>
+          <input type="file" id="import-file" accept=".json" style="display:none" />
+          <button id="reset-game" class="ghost danger">Spiel zuruecksetzen</button>
         </div>
       </div>
       <div id="legend-section" class="small">
@@ -241,6 +255,7 @@
     const elements = {
       roundCount: document.getElementById("round-count"),
       roundCards: document.getElementById("round-cards"),
+      roundDealer: document.getElementById("round-dealer"),
       rounds: document.getElementById("rounds"),
       totals: document.getElementById("totals"),
       status: document.getElementById("status"),
@@ -258,6 +273,10 @@
       offsetValue: document.getElementById("offset-value"),
       dealerSelect: document.getElementById("dealer-select"),
       resetGame: document.getElementById("reset-game"),
+      newGame: document.getElementById("new-game"),
+      exportGame: document.getElementById("export-game"),
+      importGame: document.getElementById("import-game"),
+      importFile: document.getElementById("import-file"),
       nameDialogBackdrop: document.getElementById("name-dialog-backdrop"),
       nameDialogTitle: document.getElementById("name-dialog-title"),
       nameDialogInput: document.getElementById("name-dialog-input"),
@@ -266,6 +285,8 @@
     };
 
     let nameDialogSubmit = null;
+    const expandedRoundIds = new Set();
+    let scrollToNextRound = false;
 
     function openNameDialog(options) {
       const {
@@ -541,6 +562,12 @@
     function renderRounds() {
       elements.rounds.innerHTML = "";
       const roundScores = computeRoundScores();
+      const bonusOffset = clamp(state.settings.offset, 0, 20);
+      let firstIncompleteIndex = -1;
+      for (let i = 0; i < state.rounds.length; i++) {
+        if (!isRoundComplete(i)) { firstIncompleteIndex = i; break; }
+      }
+      if (firstIncompleteIndex === -1) firstIncompleteIndex = state.rounds.length - 1;
 
       state.rounds.forEach((round, index) => {
         const cards = cardsForRound(index);
@@ -548,17 +575,67 @@
           const entry = getRoundInput(round.id, player.id, cards);
           return sum + entry.bid;
         }, 0);
+        const roundComplete = isRoundComplete(index);
+        const nearCurrent = Math.abs(index - firstIncompleteIndex) <= 1;
+        const autoOpen = nearCurrent || expandedRoundIds.has(round.id);
+        const isCollapsed = roundComplete && !autoOpen;
+
         const wrapper = document.createElement("div");
-        wrapper.className = "round-card";
+        wrapper.className = "round-card" + (isCollapsed ? " round-collapsed" : "");
+        wrapper.setAttribute("data-round-id", round.id);
+        if (firstIncompleteIndex === index) {
+          wrapper.id = "next-round";
+        }
 
         const header = document.createElement("div");
         header.className = "round-header";
-        header.innerHTML = `<strong>Runde ${index + 1}</strong>`;
+        header.innerHTML = `<strong>${cards} Karte${cards !== 1 ? 'n' : ''}</strong>`;
+
+        if (roundComplete) {
+          header.addEventListener("click", () => {
+            if (expandedRoundIds.has(round.id)) {
+              expandedRoundIds.delete(round.id);
+            } else {
+              expandedRoundIds.add(round.id);
+            }
+            render();
+          });
+        }
+
         const meta = document.createElement("div");
         meta.className = "meta";
-        meta.innerHTML = `<span class="badge">${cards} Karte(n)</span><span class="badge">Geber: ${dealerForRound(index)}</span><span class="badge">Ansagen: ${totalBid} von ${cards}</span>`;
+
+        let ansagenClass = "badge";
+        if (state.players.length > 0) {
+          if (totalBid < cards) ansagenClass = "badge badge-under";
+          else if (totalBid === cards) ansagenClass = "badge badge-even";
+          else ansagenClass = "badge badge-over";
+        }
+
+        let metaHtml = `<span class="badge">Geber: ${dealerForRound(index)}</span><span class="${ansagenClass}">Ansagen: ${totalBid} / ${cards}</span>`;
+        if (roundComplete) {
+          metaHtml += `<span class="badge">${isCollapsed ? '▶' : '▼'}</span>`;
+        }
+        meta.innerHTML = metaHtml;
         header.appendChild(meta);
         wrapper.appendChild(header);
+
+        if (isCollapsed) {
+          const rScore = roundScores[round.id];
+          if (rScore?.complete) {
+            const summary = document.createElement("div");
+            summary.className = "round-summary";
+            const parts = state.players.map(p => {
+              const entry = getRoundInput(round.id, p.id, cards);
+              const delta = entry.hit ? entry.bid + bonusOffset : -(entry.bid + bonusOffset);
+              return `${p.name}: ${entry.hit ? '✅' : '❌'} ${entry.bid} (${delta > 0 ? '+' : ''}${delta})`;
+            });
+            summary.textContent = parts.join(' \u00b7 ');
+            wrapper.appendChild(summary);
+          }
+          elements.rounds.appendChild(wrapper);
+          return;
+        }
 
         const list = document.createElement("div");
         list.className = "round-grid";
@@ -675,14 +752,31 @@
       const cards = cardsForRound(roundIndex);
       const entry = getRoundInput(roundId, playerId, cards);
       entry.hit = value;
+
+      // When any hit/miss is set, auto-fill remaining null players with hit (green)
+      state.players.forEach(player => {
+        if (player.id !== playerId) {
+          const other = getRoundInput(roundId, player.id, cards);
+          if (other.hit === null) {
+            other.hit = true;
+          }
+        }
+      });
+
+      // Auto-scroll to next round when this round becomes complete
+      const allHitsSet = state.players.every(p => getRoundInput(roundId, p.id, cards).hit !== null);
+      if (allHitsSet) scrollToNextRound = true;
+
       saveState();
       render();
     }
 
     function renderHeader() {
       elements.roundCount.textContent = state.rounds.length;
-      const lastIndex = Math.max(0, state.rounds.length - 1);
-      elements.roundCards.textContent = cardsForRound(lastIndex);
+      let nextIndex = state.rounds.findIndex((r, i) => !isRoundComplete(i));
+      if (nextIndex === -1) nextIndex = Math.max(0, state.rounds.length - 1);
+      elements.roundCards.textContent = cardsForRound(nextIndex);
+      elements.roundDealer.textContent = dealerForRound(nextIndex);
       elements.maxCardsValue.textContent = String(state.settings.maxCards);
       elements.offsetValue.textContent = String(state.settings.offset);
       elements.maxCardsDec.disabled = state.settings.maxCards <= 1;
@@ -758,18 +852,29 @@
       renderTotals();
       renderRounds();
       updateStartSettingsVisibility();
+      if (scrollToNextRound) {
+        scrollToNextRound = false;
+        requestAnimationFrame(() => {
+          const el = document.getElementById("next-round");
+          if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+        });
+      }
     }
 
     elements.addPlayer.addEventListener("click", () => {
-      const defaultName = `Spieler ${state.players.length + 1}`;
       openNameDialog({
-        title: "Neuen Spieler anlegen",
+        title: "Spieler anlegen (Komma = mehrere)",
         initialValue: "",
-        placeholder: defaultName,
+        placeholder: "z.B. Anna, Ben, Clara",
         saveLabel: "Hinzufuegen",
         onSubmit: (rawValue) => {
-          const trimmed = rawValue.trim() || defaultName;
-          state.players.push({ id: createId(), name: trimmed });
+          const names = rawValue.split(",").map(n => n.trim()).filter(n => n.length > 0);
+          if (names.length === 0) {
+            names.push(`Spieler ${state.players.length + 1}`);
+          }
+          names.forEach(name => {
+            state.players.push({ id: createId(), name });
+          });
           if (!state.settings.startDealerId) {
             state.settings.startDealerId = state.players[0].id;
           }
@@ -848,8 +953,67 @@
       state.players = [];
       state.rounds = [];
       state.settings = { maxCards: 10, offset: 4, startDealerId: null, showSetup: true, autoCollapsed: false, showLegend: false };
+      expandedRoundIds.clear();
       saveState();
       render();
+    });
+
+    elements.newGame.addEventListener("click", () => {
+      if (!confirm("Neue Partie starten? Spieler bleiben erhalten, Punkte werden zurueckgesetzt.")) {
+        return;
+      }
+      state.rounds = [];
+      state.settings.autoCollapsed = false;
+      state.settings.showSetup = true;
+      expandedRoundIds.clear();
+      saveState();
+      render();
+    });
+
+    elements.exportGame.addEventListener("click", () => {
+      const json = JSON.stringify(state, null, 2);
+      const blob = new Blob([json], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "redsgigi-spielstand.json";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    });
+
+    elements.importGame.addEventListener("click", () => {
+      elements.importFile.click();
+    });
+
+    elements.importFile.addEventListener("change", (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const imported = JSON.parse(e.target.result);
+          if (imported.players && imported.rounds) {
+            Object.assign(state, imported);
+            state.settings = {
+              maxCards: 10, offset: 4, startDealerId: null,
+              showSetup: true, autoCollapsed: false, showLegend: false,
+              ...imported.settings
+            };
+            expandedRoundIds.clear();
+            saveState();
+            render();
+            setStatus("Spielstand erfolgreich importiert!");
+          } else {
+            setStatus("Ungueltige Datei.", true);
+          }
+        } catch {
+          setStatus("Fehler beim Import.", true);
+        }
+        event.target.value = "";
+      };
+      reader.readAsText(file);
     });
 
     render();

@@ -61,7 +61,7 @@
     .name-row button { padding: 6px 10px; font-size: 12px; }
     .touch { min-height: 44px; }
     .toggle { display: inline-flex; gap: 6px; }
-    .toggle button { padding: 8px 12px; min-height: 44px; border-radius: 10px; }
+    .toggle button { padding: 8px 12px; min-height: 44px; border-radius: 10px; touch-action: none; }
     .toggle button.active { background: var(--accent); color: #0b0c10; font-weight: 700; }
     .player-card { padding: 10px 0; border-bottom: 1px solid var(--border); }
     .player-card:last-child { border-bottom: none; }
@@ -723,14 +723,18 @@
       hitBtn.title = "Treffer";
       hitBtn.setAttribute("aria-label", "Treffer");
       hitBtn.className = isHit === true ? "active" : "";
-      hitBtn.addEventListener("click", () => updateHit(roundId, playerId, true));
+      hitBtn.dataset.roundId = roundId;
+      hitBtn.dataset.playerId = playerId;
+      hitBtn.dataset.hitValue = "true";
 
       const missBtn = document.createElement("button");
       missBtn.textContent = "❌";
       missBtn.title = "Verfehlt";
       missBtn.setAttribute("aria-label", "Verfehlt");
       missBtn.className = isHit === false ? "active" : "";
-      missBtn.addEventListener("click", () => updateHit(roundId, playerId, false));
+      missBtn.dataset.roundId = roundId;
+      missBtn.dataset.playerId = playerId;
+      missBtn.dataset.hitValue = "false";
 
       wrapper.appendChild(hitBtn);
       wrapper.appendChild(missBtn);
@@ -753,16 +757,6 @@
       const entry = getRoundInput(roundId, playerId, cards);
       entry.hit = value;
 
-      // When any hit/miss is set, auto-fill remaining null players with hit (green)
-      state.players.forEach(player => {
-        if (player.id !== playerId) {
-          const other = getRoundInput(roundId, player.id, cards);
-          if (other.hit === null) {
-            other.hit = true;
-          }
-        }
-      });
-
       // Auto-scroll to next round when this round becomes complete
       const allHitsSet = state.players.every(p => getRoundInput(roundId, p.id, cards).hit !== null);
       if (allHitsSet) scrollToNextRound = true;
@@ -770,6 +764,77 @@
       saveState();
       render();
     }
+
+    // --- Swipe across multiple hit/miss buttons ---
+    const swipeState = { active: false, hitValue: null, visited: new Set() };
+
+    function applySwipeToElement(el) {
+      if (!el || !el.dataset.hitValue) return;
+      const key = el.dataset.roundId + ":" + el.dataset.playerId;
+      if (swipeState.visited.has(key)) return;
+      swipeState.visited.add(key);
+      const roundId = el.dataset.roundId;
+      const playerId = el.dataset.playerId;
+      const roundIndex = state.rounds.findIndex(r => r.id === roundId);
+      const cards = cardsForRound(roundIndex);
+      const entry = getRoundInput(roundId, playerId, cards);
+      entry.hit = swipeState.hitValue;
+    }
+
+    function getHitButton(x, y) {
+      const el = document.elementFromPoint(x, y);
+      if (el && el.dataset && el.dataset.hitValue !== undefined) return el;
+      return null;
+    }
+
+    document.addEventListener("pointerdown", (e) => {
+      const btn = getHitButton(e.clientX, e.clientY);
+      if (!btn) return;
+      e.preventDefault();
+      btn.setPointerCapture?.(e.pointerId);
+      // Release capture so pointermove can detect other elements
+      btn.releasePointerCapture?.(e.pointerId);
+      swipeState.active = true;
+      swipeState.hitValue = btn.dataset.hitValue === "true";
+      swipeState.visited = new Set();
+      applySwipeToElement(btn);
+      saveState();
+      render();
+    });
+
+    document.addEventListener("pointermove", (e) => {
+      if (!swipeState.active) return;
+      const btn = getHitButton(e.clientX, e.clientY);
+      if (!btn) return;
+      // Only apply to buttons with the same hitValue direction
+      if ((btn.dataset.hitValue === "true") !== swipeState.hitValue) return;
+      const key = btn.dataset.roundId + ":" + btn.dataset.playerId;
+      if (swipeState.visited.has(key)) return;
+      applySwipeToElement(btn);
+      saveState();
+      render();
+    });
+
+    document.addEventListener("pointerup", () => {
+      if (!swipeState.active) return;
+      swipeState.active = false;
+      // Check if a round became complete after the swipe
+      const roundIds = new Set();
+      swipeState.visited.forEach(key => roundIds.add(key.split(":")[0]));
+      roundIds.forEach(roundId => {
+        const roundIndex = state.rounds.findIndex(r => r.id === roundId);
+        const cards = cardsForRound(roundIndex);
+        const allHitsSet = state.players.every(p => getRoundInput(roundId, p.id, cards).hit !== null);
+        if (allHitsSet) scrollToNextRound = true;
+      });
+      swipeState.visited = new Set();
+      render();
+    });
+
+    document.addEventListener("pointercancel", () => {
+      swipeState.active = false;
+      swipeState.visited = new Set();
+    });
 
     function renderHeader() {
       elements.roundCount.textContent = state.rounds.length;

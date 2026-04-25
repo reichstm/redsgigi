@@ -181,6 +181,35 @@
       z-index: 0;
       border-radius: 0 12px 12px 0;
     }
+    /* Mobile-first overrides – must come AFTER the base .round-player rule so the
+       cascade is correct (same specificity, later source order wins). */
+    @media (max-width: 800px) {
+      body { padding: 12px; }
+      /* Two-column grid: name+stepper on the left, hit-toggle on the right.
+         This ensures every button is always visible on narrow portrait screens. */
+      .round-player {
+        grid-template-columns: 1fr auto;
+        grid-template-rows: auto auto;
+        gap: 4px 8px;
+        align-items: start;
+      }
+      .round-player .left {
+        grid-column: 1;
+        grid-row: 1;
+        align-items: flex-start;
+      }
+      .round-player .stepper {
+        grid-column: 1;
+        grid-row: 2;
+        justify-self: start;
+      }
+      .round-player .toggle {
+        grid-column: 2;
+        grid-row: 1 / span 2;
+        align-self: center;
+        justify-self: end;
+      }
+    }
   </style>
 </head>
 <body>

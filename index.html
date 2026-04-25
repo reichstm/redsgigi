@@ -888,7 +888,12 @@
       // Release capture so pointermove can detect other elements
       btn.releasePointerCapture?.(e.pointerId);
       swipeState.active = true;
-      swipeState.hitValue = btn.dataset.hitValue === "true";
+      const buttonValue = btn.dataset.hitValue === "true";
+      const roundIndex = state.rounds.findIndex(r => r.id === btn.dataset.roundId);
+      const cards = cardsForRound(roundIndex);
+      const entry = getRoundInput(btn.dataset.roundId, btn.dataset.playerId, cards);
+      // If the button is already active, toggle it off (null); otherwise apply the button's value
+      swipeState.hitValue = entry.hit === buttonValue ? null : buttonValue;
       swipeState.visited = new Set();
       applySwipeToElement(btn);
       saveState();

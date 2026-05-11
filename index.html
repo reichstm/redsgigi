@@ -432,6 +432,14 @@
       return state.players[dealerIndex].name;
     }
 
+    function getPlayersForRound(roundIndex) {
+      if (state.players.length === 0) return [];
+      const startIndex = getStartDealerIndex();
+      const dealerIndex = (startIndex + roundIndex) % state.players.length;
+      const firstIndex = (dealerIndex + 1) % state.players.length;
+      return [...state.players.slice(firstIndex), ...state.players.slice(0, firstIndex)];
+    }
+
     function getRoundInput(roundId, playerId, cards) {
       const round = state.rounds.find(r => r.id === roundId);
       if (!round.inputs[playerId]) {
@@ -666,7 +674,7 @@
           if (rScore?.complete) {
             const summary = document.createElement("div");
             summary.className = "round-summary";
-            const parts = state.players.map(p => {
+            const parts = getPlayersForRound(index).map(p => {
               const entry = getRoundInput(round.id, p.id, cards);
               const delta = entry.hit ? entry.bid + bonusOffset : -(entry.bid + bonusOffset);
               return `${p.name}: ${entry.hit ? '✅' : '❌'} ${entry.bid} (${delta > 0 ? '+' : ''}${delta})`;
@@ -682,7 +690,7 @@
         list.className = "round-grid";
         const roundScore = roundScores[round.id];
 
-        state.players.forEach(player => {
+        getPlayersForRound(index).forEach(player => {
           const entry = getRoundInput(round.id, player.id, cards);
           const row = document.createElement("div");
           row.className = "round-player";
